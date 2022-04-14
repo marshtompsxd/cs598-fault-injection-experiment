@@ -1,0 +1,29 @@
+{
+    "servers": [
+        {
+            "ip": "localhost",
+            "dbfilename": "raft1.rdb",
+            "raftlogfilename": "raftlog1.db",
+            "cpu": 1,
+            "port": "5001"
+        },
+        {
+            "ip": "localhost",
+            "dbfilename": "raft2.rdb",
+            "raftlogfilename": "raftlog2.db",
+            "cpu": 2,
+            "port": "5002"
+        },
+        {
+            "ip": "localhost",
+            "dbfilename": "raft3.rdb",
+            "raftlogfilename": "raftlog3.db",
+            "cpu": 3,
+            "port": "5003"
+        }
+    ],
+    "client": {
+        "ycsb": "./bin/ycsb",
+        "cpu": 4
+    }
+}
