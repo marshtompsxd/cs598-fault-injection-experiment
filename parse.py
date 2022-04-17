@@ -1,5 +1,6 @@
 import glob
 import os
+import json
 
 map = {}
 ycsb_files = glob.glob("runoutput/*")
@@ -21,6 +22,8 @@ for ycsb_file in ycsb_files:
 
 for fault_type in map:
     map[fault_type] = sorted(map[fault_type], key=lambda i: i["throughput"])
+
+json.dump(map, open("result.json", "w"), indent=4)
 
 for fault_type in map:
     str = fault_type
