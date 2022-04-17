@@ -20,7 +20,7 @@ def parse_opt():
     parser.add_argument(
         "--target-throughput",
         type=str,
-        default="1000,2000,3000,4000,5000",
+        default="1000,1500,2000,2500,3000,3500,4000,4500,5000",
         help="target throughput",
     )
     parser.add_argument(
@@ -55,7 +55,7 @@ def parse_opt():
 
 
 def run_cmd(cmd, stdout=None):
-    print(cmd)
+    print("\033[92m" + cmd + "\033[0m")
     subprocess.run(cmd, shell=True, check=True, stdout=stdout)
 
 
@@ -110,7 +110,10 @@ def benchmark_load(config, opt, throughput):
     cpu = client_config["cpu"]
     workload = os.path.join("..", opt.workload)
     req_port = opt.request_port
-    out_file = "load-{}-{}-{}".format(throughput, opt.fault_type, opt.fault_target)
+    out_file = "loadoutput/load-{}-{}-{}".format(
+        throughput, opt.fault_type, opt.fault_target
+    )
+    run_cmd("mkdir -p loadoutput")
     run_cmd(
         'cd YCSB; taskset -ac {} ./bin/ycsb load redis -s -P {} -threads 32 -p "redis.host=localhost" -p "redis.port={}"'.format(
             cpu, workload, req_port
@@ -126,7 +129,10 @@ def benchmark_run(config, opt, throughput):
     req_port = opt.request_port
     if throughput != "":
         target_cmd = "-target {}".format(throughput)
-    out_file = "run-{}-{}-{}".format(throughput, opt.fault_type, opt.fault_target)
+    out_file = "runoutput/run-{}-{}-{}".format(
+        throughput, opt.fault_type, opt.fault_target
+    )
+    run_cmd("mkdir -p runoutput")
     run_cmd(
         'cd YCSB; taskset -ac {} ./bin/ycsb run redis -s -P {} -threads 32 {} -p "redis.host=localhost" -p "redis.port={}"'.format(
             cpu, workload, target_cmd, req_port
@@ -141,10 +147,10 @@ def kill_process(pids):
 
 
 def cpu_slow(slow_pids):
-    quota = 50000
+    quota = 100000
     period = 1000000
     cgroup_name = "/sys/fs/cgroup/cpu/db"
-    run_cmd("sudo mkdir {}".format(cgroup_name))
+    run_cmd("sudo cgcreate -g cpu:db -f 777")
     run_cmd("sudo echo {} > {}/cpu.cfs_quota_us".format(quota, cgroup_name))
     run_cmd("sudo echo {} > {}/cpu.cfs_period_us".format(period, cgroup_name))
     for slow_pid in slow_pids:
@@ -153,10 +159,8 @@ def cpu_slow(slow_pids):
 
 def memory_contention(slow_pids):
     cgroup_name = "/sys/fs/cgroup/memory/db"
-    run_cmd("sudo mkdir {}".format(cgroup_name))
-    run_cmd(
-        "sudo echo {} > {}/memory.limit_in_bytes".format(5 * 1024 * 1024, cgroup_name)
-    )
+    run_cmd("sudo cgcreate -g memory:db -f 777")
+    run_cmd("sudo echo {} > {}/memory.limit_in_bytes".format(256 * 1024, cgroup_name))
     for slow_pid in slow_pids:
         run_cmd("sudo echo {} > {}/cgroup.procs".format(slow_pid, cgroup_name))
 
@@ -183,6 +187,13 @@ def fault_injection(config, opt, pids):
             return
 
 
+def cleanup_for_injection(config, opt):
+    if opt.fault_type == "cpuslow":
+        run_cmd("sudo cgdelete cpu:db")
+    elif opt.fault_type == "memcontention":
+        run_cmd("sudo cgdelete memory:db")
+
+
 def run(opt, throughput):
     config = None
     with open(opt.config) as f:
@@ -204,6 +215,9 @@ def run(opt, throughput):
     benchmark_run(config, opt, throughput)
     fault_injection_thread.join()
     stop_redis(config)
+    cleanup_for_injection(config, opt)
+    cleanup(config)
+    time.sleep(5)
 
 
 if __name__ == "__main__":
