@@ -50,6 +50,18 @@ def parse_opt():
         default=0,
         help="After how long from the start of sending reqs should the fault be injected",
     )
+    parser.add_argument(
+        "--cpu-quota",
+        type=int,
+        default=100000,
+        help="cpu quota allocated to the process",
+    )
+    parser.add_argument(
+        "--memory-quota",
+        type=int,
+        default=256,
+        help="memory quota allocated to the process",
+    )
     opt = parser.parse_args()
     return opt
 
@@ -132,6 +144,10 @@ def benchmark_run(config, opt, throughput):
     out_file = "runoutput/run-{}-{}-{}".format(
         throughput, opt.fault_type, opt.fault_target
     )
+    if opt.fault_type == "cpuslow" and opt.cpu_quota != 100000:
+        out_file += "_{}".format(opt.cpu_quota)
+    elif opt.fault_type == "memcontention" and opt.memory_quota != 256:
+        out_file += "_{}".format(opt.memory_quota)
     run_cmd("mkdir -p runoutput")
     run_cmd(
         'cd YCSB; taskset -ac {} ./bin/ycsb run redis -s -P {} -threads 32 {} -p "redis.host=localhost" -p "redis.port={}"'.format(
@@ -141,13 +157,13 @@ def benchmark_run(config, opt, throughput):
     )
 
 
-def kill_process(pids):
+def kill_process(opt, pids):
     for pid in pids:
         run_cmd("kill -9 {}".format(pid))
 
 
-def cpu_slow(slow_pids):
-    quota = 100000
+def cpu_slow(opt, slow_pids):
+    quota = opt.cpu_quota
     period = 1000000
     cgroup_name = "/sys/fs/cgroup/cpu/db"
     run_cmd("sudo cgcreate -g cpu:db -f 777")
@@ -157,10 +173,14 @@ def cpu_slow(slow_pids):
         run_cmd("echo {} > {}/cgroup.procs".format(slow_pid, cgroup_name))
 
 
-def memory_contention(slow_pids):
+def memory_contention(opt, slow_pids):
     cgroup_name = "/sys/fs/cgroup/memory/db"
     run_cmd("sudo cgcreate -g memory:db -f 777")
-    run_cmd("sudo echo {} > {}/memory.limit_in_bytes".format(256 * 1024, cgroup_name))
+    run_cmd(
+        "sudo echo {} > {}/memory.limit_in_bytes".format(
+            opt.memory_quota * 1024, cgroup_name
+        )
+    )
     for slow_pid in slow_pids:
         run_cmd("sudo echo {} > {}/cgroup.procs".format(slow_pid, cgroup_name))
 
@@ -178,11 +198,11 @@ def fault_injection(config, opt, pids):
             )
         )
         if opt.fault_type == "crash":
-            kill_process([faulty_pid])
+            kill_process(opt, [faulty_pid])
         elif opt.fault_type == "cpuslow":
-            cpu_slow([faulty_pid])
+            cpu_slow(opt, [faulty_pid])
         elif opt.fault_type == "memcontention":
-            memory_contention([faulty_pid])
+            memory_contention(opt, [faulty_pid])
         else:
             return
 
