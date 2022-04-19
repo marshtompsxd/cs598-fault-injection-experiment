@@ -42,25 +42,25 @@ def parse_opt():
     #     "--loadoutput", type=str, default="loadoutput", help="results output path"
     # )
     parser.add_argument(
-        "--request-port", type=int, default=5001, help="results output path"
+        "--request-port", type=int, default=5001, help="port to send request"
     )
     parser.add_argument(
         "--fault-snooze",
         type=int,
         default=0,
-        help="After how long from the start of sending reqs should the fault be injected",
+        help="After how long from the start of sending requests should the fault be injected",
     )
     parser.add_argument(
         "--cpu-quota",
         type=int,
         default=100000,
-        help="cpu quota allocated to the process",
+        help="cpu quota allocated to the process (out of 1000000)",
     )
     parser.add_argument(
         "--memory-quota",
         type=int,
         default=256,
-        help="memory quota allocated to the process",
+        help="memory quota allocated to the process (in bytes)",
     )
     opt = parser.parse_args()
     return opt
